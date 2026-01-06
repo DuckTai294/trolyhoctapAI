@@ -3,11 +3,17 @@ import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { QuizQuestion, Subject, StudyRoadmap, StudentProfile, QuizType, ExamResult, MindmapData, GradeRecord, CareerSuggestion } from "../types";
 
 // Initialize the client with the provided API key from environment variable
-// STRICTLY using process.env.API_KEY as per security guidelines.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// API key is loaded from .env.local via Vite's define config
+const API_KEY = (typeof process !== 'undefined' && process.env?.API_KEY) ||
+  (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) ||
+  '';
 
-// Use Gemini 2.5 Flash for optimal performance and reasoning
-const MODEL_NAME = "gemini-2.5-flash"; 
+// Check if API key is available
+const isApiKeyAvailable = API_KEY && API_KEY.length > 10;
+const ai = isApiKeyAvailable ? new GoogleGenAI({ apiKey: API_KEY }) : null;
+
+// Use Gemini 2.0 Flash for optimal performance
+const MODEL_NAME = "gemini-2.0-flash";
 
 // --- SYSTEM INSTRUCTIONS ---
 
@@ -75,7 +81,11 @@ function cleanAndParseJson(text: string | undefined): any {
   }
 }
 
+// Message for when API is not available
+const API_UNAVAILABLE_MSG = "⚠️ Chưa cấu hình API Key. Vui lòng thêm GEMINI_API_KEY vào file .env.local và khởi động lại ứng dụng.";
+
 export const generateTheory = async (subject: Subject, topic: string, profile?: StudentProfile): Promise<string> => {
+  if (!ai) return API_UNAVAILABLE_MSG;
   try {
     const context = buildContext(profile);
     const response = await ai.models.generateContent({
@@ -96,6 +106,7 @@ export const generateTheory = async (subject: Subject, topic: string, profile?: 
 };
 
 export const generateQuiz = async (subject: Subject, topic: string, profile?: StudentProfile): Promise<QuizQuestion[]> => {
+  if (!ai) return [];
   try {
     const context = buildContext(profile);
     const response = await ai.models.generateContent({
@@ -139,6 +150,7 @@ export const generateComprehensiveQuiz = async (
   subject: string,
   profile?: StudentProfile
 ): Promise<QuizQuestion[]> => {
+  if (!ai) return [];
   try {
     const context = buildContext(profile);
     const parts: any[] = [];
@@ -209,6 +221,7 @@ export const generateComprehensiveQuiz = async (
 
 // --- GAP HUNTER ---
 export const generateGapAnalysis = async (history: ExamResult[], profile?: StudentProfile): Promise<{ diagnosis: string, remedialQuestions: QuizQuestion[] }> => {
+  if (!ai) return { diagnosis: API_UNAVAILABLE_MSG, remedialQuestions: [] };
   try {
     const context = buildContext(profile);
     const historySummary = history.slice(0, 5).map(exam => {
@@ -273,6 +286,7 @@ export const generateGapAnalysis = async (history: ExamResult[], profile?: Stude
 };
 
 export const explainText = async (text: string, profile?: StudentProfile): Promise<string> => {
+  if (!ai) return API_UNAVAILABLE_MSG;
   try {
     const context = buildContext(profile);
     const response = await ai.models.generateContent({
@@ -289,6 +303,7 @@ export const explainText = async (text: string, profile?: StudentProfile): Promi
 };
 
 export const chatWithAI = async (message: string, base64Image?: string, options: { useGenZMode?: boolean, useSocraticMode?: boolean, profile?: StudentProfile } = {}): Promise<string> => {
+  if (!ai) return API_UNAVAILABLE_MSG;
   try {
     const parts: any[] = [];
     if (base64Image) {
@@ -315,6 +330,7 @@ export const chatWithAI = async (message: string, base64Image?: string, options:
 };
 
 export const generateFlashcards = async (content: string, profile?: StudentProfile): Promise<{ front: string, back: string }[]> => {
+  if (!ai) return [];
   try {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
@@ -342,6 +358,7 @@ export const generateFlashcards = async (content: string, profile?: StudentProfi
 };
 
 export const generateStudyRoadmap = async (target: string, currentLevel: string, profile?: StudentProfile): Promise<StudyRoadmap | null> => {
+  if (!ai) return null;
   try {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
@@ -381,6 +398,7 @@ export const generateStudyRoadmap = async (target: string, currentLevel: string,
 
 // --- MINDMAP GENERATOR ---
 export const generateMindmap = async (input: string, profile?: StudentProfile): Promise<MindmapData | null> => {
+  if (!ai) return null;
   try {
     // const context = buildContext(profile); // Not strictly needed for structure generation
     const response = await ai.models.generateContent({
@@ -456,6 +474,7 @@ export const generateMindmap = async (input: string, profile?: StudentProfile): 
 
 // --- GRADE ANALYZER ---
 export const analyzeGrades = async (grades: GradeRecord, profile: StudentProfile): Promise<CareerSuggestion | null> => {
+  if (!ai) return null;
   try {
     const gradeSummary = Object.entries(grades).map(([subj, detail]) =>
       `${subj}: Avg ${detail.average?.toFixed(1) || 'N/A'}`
